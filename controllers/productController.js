@@ -1,63 +1,92 @@
-// สร้างตัวแปรเพื่อเก็บ JSON Array ใน RAM ของเซิร์ฟเวอร์
-const products = [];
+const { MongoClient } = require('mongodb');
 
-// API Endpoint: ดูรายการ
-function getAllProducts(req, res) {
-  res.json(products);
-}
+const url = 'mongodb://localhost:27017';
+const client = new MongoClient(url, { useUnifiedTopology: true });
 
-// API Endpoint: เพิ่ม
-function createProduct(req, res) {
-  const { name, category, price, stock } = req.body;
-  const product = {
-    id: products.length + 1,
-    name,
-    category,
-    price,
-    stock,
-  };
-  products.push(product);
-  res.status(201).json(product);
-}
-
-// API Endpoint: แก้ไข
-function updateProduct(req, res) {
-  const id = parseInt(req.params.id);
-  const { name, category, price, stock } = req.body;
-  const productIndex = products.findIndex((product) => product.id === id);
-
-  if (productIndex === -1) {
-    return res.status(404).json({ error: 'สินค้าไม่พบ' });
+// ฟังก์ชันเชื่อมต่อ MongoDB
+async function connectToMongoDB() {
+  try {
+    await client.connect();
+    console.log('เชื่อมต่อกับ MongoDB สำเร็จ');
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ MongoDB:', error);
   }
-
-  products[productIndex] = {
-    ...products[productIndex],
-    name,
-    category,
-    price,
-    stock,
-  };
-
-  res.json(products[productIndex]);
 }
 
-// API Endpoint: ลบ
-function deleteProduct(req, res) {
-  const id = parseInt(req.params.id);
-  const productIndex = products.findIndex((product) => product.id === id);
-
-  if (productIndex === -1) {
-    return res.status(404).json({ error: 'สินค้าไม่พบ' });
+// ฟังก์ชันดึงรายการสินค้าทั้งหมด
+async function getAllProducts(req, res) {
+  try {
+    const db = client.db('your-database-name');
+    const collection = db.collection('your-collection-name');
+    const products = await collection.find({}).toArray();
+    res.json(products);
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการดึงรายการสินค้า:', error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงรายการสินค้า' });
   }
+}
 
-  products.splice(productIndex, 1);
+// ฟังก์ชันเพิ่มสินค้าใหม่
+async function createProduct(req, res) {
+  const newProduct = req.body;
+  try {
+    const db = client.db('your-database-name');
+    const collection = db.collection('your-collection-name');
+    const result = await collection.insertOne(newProduct);
+    res.status(201).json(result.ops[0]);
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการเพิ่มสินค้าใหม่:', error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการเพิ่มสินค้าใหม่' });
+  }
+}
 
-  res.status(204).send();
+// ฟังก์ชันแก้ไขสินค้า
+async function updateProduct(req, res) {
+  const id = req.params.id;
+  const updatedProduct = req.body;
+  
+  try {
+    const db = client.db('your-database-name');
+    const collection = db.collection('your-collection-name');
+    const result = await collection.updateOne({ id }, { $set: updatedProduct });
+    
+    if (result.matchedCount === 0) {
+      res.status(404).json({ error: 'สินค้าไม่พบ' });
+    } else {
+      res.json(updatedProduct);
+    }
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการแก้ไขสินค้า:', error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการแก้ไขสินค้า' });
+  }
+}
+
+// ฟังก์ชันลบสินค้า
+async function deleteProduct(req, res) {
+  const id = req.params.id;
+  
+  try {
+    const db = client.db('your-database-name');
+    const collection = db.collection('your-collection-name');
+    const result = await collection.deleteOne({ id });
+    
+    if (result.deletedCount === 0) {
+      res.status(404).json({ error: 'สินค้าไม่พบ' });
+    } else {
+      res.status(204).send();
+    }
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการลบสินค้า:', error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการลบสินค้า' });
+  }
 }
 
 module.exports = {
+  connectToMongoDB,
   getAllProducts,
   createProduct,
-  updateProduct,
-  deleteProduct,
+  updateProduct, // เพิ่มฟังก์ชันการแก้ไข
+  deleteProduct, // เพิ่มฟังก์ชันการลบ
 };
+
+
